@@ -1,7 +1,7 @@
 import math
 
 def encrypt(key, message):
-	raise NotImplementedError
+    raise NotImplementedError
 
 def decrypt(key, message):
-	raise NotImplementedError
+    raise NotImplementedError
