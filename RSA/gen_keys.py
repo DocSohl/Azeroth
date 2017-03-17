@@ -1,4 +1,5 @@
-import math
+from . import encoding
+
 import random
 import fractions
 
@@ -68,4 +69,4 @@ def gen_keys(key_size=2048):
 
     n = p * q # public key
     d = modinv(e, lam) # private key
-    return n, d
+    return encoding.int_to_b64(n), encoding.int_to_b64(d)
