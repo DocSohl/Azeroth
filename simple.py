@@ -4,11 +4,10 @@ from RSA import gen_keys
 from RSA import crypt
 
 import json
-import random
 import os
 import getpass
 import argparse
-import hashlib
+import base64
 from builtins import input
 
 
@@ -63,34 +62,35 @@ class Session(object):
         self.save_config()
 
     def encrypt(self, contact_name, message):
-        # digest = hashlib.sha1(message.encode()).hexdigest()
-        # signature = crypt.encrypt(self.private, digest)
-        # payload = {"message" : message, "signature" : signature}
-        payload = {"message": message}
+        signature = crypt.create_signature(self.public, self.private, message)
         contact_key = self.contacts[contact_name]
-        return crypt.encrypt(contact_key, json.dumps(payload))
+        M = crypt.encrypt(contact_key, message)
+        payload = {"message" : M, "signature" : signature}
+        return base64.b64encode(json.dumps(payload).encode("utf-8")).decode("utf-8")
 
     def decrypt(self, contact_name, encoded):
-        decoded = crypt.decrypt(self.public, self.private, encoded)
+        decompressed = base64.b64decode(encoded.encode("utf-8")).decode("utf-8")
         try:
-            payload = json.loads(decoded)
+            payload = json.loads(decompressed)
         except ValueError:
             raise Exception("Message contents are invalid")
 
-        if "message" not in payload:# or "signature" not in payload:
+        if "message" not in payload:
             raise Exception("Message contents are invalid")
 
-        if contact_name is None:
+        decoded = crypt.decrypt(self.public, self.private, payload["message"])
+
+        if contact_name is None or "signature" not in payload:
             print("WARNING: No signature validation")
         else:
-            digest = hashlib.sha1(payload["message"].encode()).hexdigest()
-            contact_key = self.contact[contact_name]
-            sig_digest = crypt.decrypt(contact_key, payload["signature"])
+            contact_key = self.contacts[contact_name]
 
-            if digest != sig_digest:
+            if crypt.verify_signature(contact_key, payload["signature"], decoded):
+                print("Message validated by signature")
+            else:
                 print("WARNING: Message signature could not be validated!")
 
-        return payload["message"]
+        return decoded
 
 if __name__=="__main__":
     parser = argparse.ArgumentParser(description="Send and receive RSA encrypted messages")
@@ -98,8 +98,6 @@ if __name__=="__main__":
     parser.add_argument("--add", action="store_true", help="Add a new contact")
     parser.add_argument("--send", action="store_true", help="Send a message to an existing contact")
     parser.add_argument("--receive", action="store_true", help="Receive a message from an existing contact")
-    parser.add_argument("--receive-no-validate", action="store_true", help="Receive a message without signature validation")
-    parser.add_argument("--test", action="store_true", help="Encrypt and decrypt a message")
     args = parser.parse_args()
     if args.new or args.add or args.send or args.receive or args.receive_no_validate or args.test:
         s = Session(load=(not args.new))
@@ -125,14 +123,3 @@ if __name__=="__main__":
         message = s.decrypt(contact_name, encoded)
         print("Received message:\n{0}".format(str(message)))
         print("")
-    if args.receive_no_validate:
-        encoded = input("Enter received message: ")
-        message = s.decrypt(None, encoded)
-        print("Received message:\n{0}".format(str(message)))
-        print("")
-    if args.test:
-        print("Encrypting")
-        encoded = s.encrypt("me", "test")
-        print("Decrypting")
-        message = s.decrypt(None, encoded)
-        print("Received message:\n{0}".format(str(message)))

@@ -7,6 +7,7 @@ import struct
 
 hLen = 64
 k = 2048 // 8 # bitsize
+e = 65537
 
 class EncodingError(Exception): pass
 class DecodingError(Exception): pass
@@ -80,7 +81,6 @@ def encrypt(key, M, P = "Azeroth"):
     n = encoding.b64_to_int(key)
     EM = OAEP_encode(M, k - 1, P = P)
     m = encoding.OS2IP(EM)
-    e = 65537
     c = pow(m, e, n)
     return encoding.int_to_b64(c)
 
@@ -92,3 +92,20 @@ def decrypt(public_key, private_key, message, P = "Azeroth"):
     EM = encoding.I2OSP(m, k - 1)
     M = OAEP_decode(EM, P = P)
     return M
+
+def create_signature(public_key, private_key, M, P = "Azeroth"):
+    digest = hashlib.sha1(M.encode()).hexdigest()
+    n = encoding.b64_to_int(public_key)
+    d = encoding.b64_to_int(private_key)
+    mdigest = encoding.OS2IP(OAEP_encode(digest, k - 1, P = P))
+    sig = pow(mdigest, d, n)
+    return encoding.int_to_b64(sig)
+
+
+def verify_signature(public_key, signature, M, P = "Azeroth"):
+    digest = hashlib.sha1(M.encode()).hexdigest()
+    n = encoding.b64_to_int(public_key)
+    S = encoding.b64_to_int(signature)
+    theirs = pow(S, e, n)
+    decoded_theirs = OAEP_decode(encoding.I2OSP(theirs, k - 1), P = P)
+    return digest == decoded_theirs
